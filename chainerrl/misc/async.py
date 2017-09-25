@@ -100,7 +100,7 @@ def share_states_as_shared_arrays(optimizer):
     set_shared_states(optimizer, shared_arrays)
     return shared_arrays
 
-#public the function to be able to be called in windows #accepted
+#TODO: looks like it's a redundant function. but still keep it tho!
 def set_seed_and_run(process_idx, 
                      run_func,
                      make_env, 
@@ -116,7 +116,9 @@ def set_seed_and_run(process_idx,
                      training_done,
                      global_step_hooks,
                      profile,
-                     shared_objects
+                     shared_objects,
+                     step_offset,
+                     eval_explorer
                      ):
      random_seed.set_random_seed(np.random.randint(0, 2 ** 31 - 1))
      run_func(process_idx,
@@ -133,9 +135,13 @@ def set_seed_and_run(process_idx,
               training_done,
               global_step_hooks,
               profile,
-              shared_objects
+              shared_objects,
+              step_offset,
+              eval_explorer
               )
 
+#contains some duplicated params since we have full_arg
+#still keeping it cuz of encapsulation and reducing name mismatches which can happenned on args
 def run_async(n_process, 
               run_func, 
               make_env,
@@ -152,7 +158,9 @@ def run_async(n_process,
               global_step_hooks,
               profile,
               log_queue,
-              shared_objects
+              shared_objects,
+              step_offset,
+              eval_explorer
               ):
     """Run experiments asynchronously.
 
@@ -181,7 +189,9 @@ def run_async(n_process,
                                           training_done,
                                           global_step_hooks,
                                           profile,
-                                          shared_objects
+                                          shared_objects,
+                                          step_offset,
+                                          eval_explorer
                                           )))
 
     for p in processes:

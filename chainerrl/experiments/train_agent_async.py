@@ -138,7 +138,9 @@ def run_func(process_idx,
              training_done,
              global_step_hooks,
              profile,
-             shared_objects
+             shared_objects,
+             step_offset,
+             eval_explorer
              ): 
     
     #logging
@@ -160,8 +162,8 @@ def run_func(process_idx,
                     eval_interval=full_args.eval_interval, 
                     outdir=outdir,
                     max_episode_len=max_episode_len,
-                    step_offset=0,
-                    explorer=None,
+                    step_offset=step_offset,
+                    explorer=eval_explorer,
                     logger=logger)
         else:
             evaluator = None
@@ -173,14 +175,15 @@ def run_func(process_idx,
     
     #make_agent
     if make_agent is not None:
-        raise Exception(__name__ + ":run_func: make_agent is not supported now!")
+        local_agent = make_agent(process_idx) #TODO: fix later since not using this now
     else:
         local_agent = agent
-        
+    
+    #always set_shared_objects cuz windows has no fork = different agents 
     if shared_objects is not None:
-        logger.info("set_shared_objects")
         set_shared_objects(local_agent, shared_objects)
     local_agent.process_idx = process_idx
+    
     #train_loop
     def f():
         train_loop(
@@ -216,7 +219,7 @@ def train_agent_async(outdir,                #yes
                       max_episode_len=None,  #yes
                       step_offset=0,         #no
                       successful_score=None, #no
-                      eval_explorer=None,    #no
+                      eval_explorer=None,    #no #not tested yet
                       agent=None,            #yes
                       make_agent=None,       #no
                       global_step_hooks=[],  #no
@@ -287,7 +290,9 @@ def train_agent_async(outdir,                #yes
                         global_step_hooks,
                         profile,
                         log_queue,
-                        shared_objects
+                        shared_objects,
+                        step_offset,
+                        eval_explorer
                         )
 
     return agent

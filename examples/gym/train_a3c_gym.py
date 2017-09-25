@@ -13,7 +13,6 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 from __future__ import absolute_import
-from builtins import *  # NOQA
 from future import standard_library
 standard_library.install_aliases()
 import argparse
@@ -35,10 +34,8 @@ from chainerrl import policies
 from chainerrl.recurrent import RecurrentChainMixin
 from chainerrl import v_function
 
-
 def phi(obs):
     return obs.astype(np.float32)
-
 
 class A3CFFSoftmax(chainer.ChainList, a3c.A3CModel):
     """An example of A3C feedforward softmax policy."""
@@ -92,15 +89,26 @@ class A3CLSTMGaussian(chainer.ChainList, a3c.A3CModel, RecurrentChainMixin):
 
         return pout, vout
 
+#moved out and added args as an param
+def make_env(process_idx, test, args):
+    if args is None:
+        raise Exception(__name__ + ":make_env:Invalid args")
+    env = gym.make(args.env)
+    if args.monitor and process_idx == 0:
+        env = gym.wrappers.Monitor(env, args.outdir)
+    if not test:
+        misc.env_modifiers.make_reward_filtered(env, lambda x: x * args.reward_scale_factor)
+    if args.render and process_idx == 0 and not test:
+        misc.env_modifiers.make_rendered(env)
+    return env
 
 def main():
     import logging
-
+    
     parser = argparse.ArgumentParser()
     parser.add_argument('processes', type=int)
     parser.add_argument('--env', type=str, default='CartPole-v0')
-    parser.add_argument('--arch', type=str, default='FFSoftmax',
-                        choices=('FFSoftmax', 'FFMellowmax', 'LSTMGaussian'))
+    parser.add_argument('--arch', type=str, default='FFSoftmax', choices=('FFSoftmax', 'FFMellowmax', 'LSTMGaussian'))
     parser.add_argument('--seed', type=int, default=None)
     parser.add_argument('--outdir', type=str, default=None)
     parser.add_argument('--t-max', type=int, default=5)
@@ -116,32 +124,26 @@ def main():
     parser.add_argument('--weight-decay', type=float, default=0.0)
     parser.add_argument('--demo', action='store_true', default=False)
     parser.add_argument('--load', type=str, default='')
-    parser.add_argument('--logger-level', type=int, default=logging.DEBUG)
+    parser.add_argument('--logger-level', type=int, default=logging.INFO)
     parser.add_argument('--monitor', action='store_true')
     args = parser.parse_args()
 
-    logging.getLogger().setLevel(args.logger_level)
+    #config logging
+    logger = logging.getLogger()
+    logger.setLevel(args.logger_level)
+    logger.handlers = []
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter('%(asctime)s - %(processName)s - %(levelname)s - %(message)s')
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
 
     if args.seed is not None:
         misc.set_random_seed(args.seed)
 
     args.outdir = experiments.prepare_output_dir(args, args.outdir)
 
-    def make_env(process_idx, test):
-        env = gym.make(args.env)
-        if args.monitor and process_idx == 0:
-            env = gym.wrappers.Monitor(env, args.outdir)
-        # Scale rewards observed by agents
-        if not test:
-            misc.env_modifiers.make_reward_filtered(
-                env, lambda x: x * args.reward_scale_factor)
-        if args.render and process_idx == 0 and not test:
-            misc.env_modifiers.make_rendered(env)
-        return env
-
     sample_env = gym.make(args.env)
-    timestep_limit = sample_env.spec.tags.get(
-        'wrapper_config.TimeLimit.max_episode_steps')
+    timestep_limit = sample_env.spec.tags.get('wrapper_config.TimeLimit.max_episode_steps')
     obs_space = sample_env.observation_space
     action_space = sample_env.action_space
 
@@ -153,20 +155,18 @@ def main():
     elif args.arch == 'FFMellowmax':
         model = A3CFFMellowmax(obs_space.low.size, action_space.n)
 
-    opt = rmsprop_async.RMSpropAsync(
-        lr=args.lr, eps=args.rmsprop_epsilon, alpha=0.99)
+    opt = rmsprop_async.RMSpropAsync(lr=args.lr, eps=args.rmsprop_epsilon, alpha=0.99)
     opt.setup(model)
     opt.add_hook(chainer.optimizer.GradientClipping(40))
     if args.weight_decay > 0:
         opt.add_hook(NonbiasWeightDecay(args.weight_decay))
 
-    agent = a3c.A3C(model, opt, t_max=args.t_max, gamma=0.99,
-                    beta=args.beta, phi=phi)
+    agent = a3c.A3C(model, opt, t_max=args.t_max, gamma=0.99, beta=args.beta, phi=phi)
     if args.load:
         agent.load(args.load)
 
     if args.demo:
-        env = make_env(0, True)
+        env = make_env(0, True, args)
         eval_stats = experiments.eval_performance(
             env=env,
             agent=agent,
@@ -177,16 +177,17 @@ def main():
             eval_stats['stdev']))
     else:
         experiments.train_agent_async(
-            agent=agent,
-            outdir=args.outdir,
-            processes=args.processes,
-            make_env=make_env,
-            profile=args.profile,
-            steps=args.steps,
-            eval_n_runs=args.eval_n_runs,
-            eval_interval=args.eval_interval,
-            max_episode_len=timestep_limit)
-
+            agent=agent,                      #agent to train
+            outdir=args.outdir,               #ouput dir
+            processes=args.processes,         #num of processes
+            make_env=make_env,                #function to make environment
+            profile=args.profile,             #provide deterministic profiling
+            steps=args.steps,                 #num of steps
+            eval_n_runs=args.eval_n_runs,     #num of evaluations when interval hits
+            eval_interval=args.eval_interval, #num of steps before start an evaluation
+            max_episode_len=timestep_limit,   #max steps per episode
+            full_args=args                    #full args to re-makeenv in async training
+            )   
 
 if __name__ == '__main__':
     main()
