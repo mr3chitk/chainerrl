@@ -13,7 +13,7 @@ import os
 from chainerrl.experiments.evaluator import AsyncEvaluator
 from chainerrl.misc import async
 from chainerrl.misc import random_seed
-
+from chainerrl import mplog
 
 def train_loop(process_idx, env, agent, steps, outdir, counter,
                episodes_counter, training_done,
@@ -122,20 +122,104 @@ def set_shared_objects(agent, shared_objects):
             getattr(agent, attr), shared)
         setattr(agent, attr, new_value)
 
+#TODO:
+# TEST: accuracy and performance vs original linux version
+def run_func(process_idx, 
+             make_env, 
+             make_agent, 
+             full_args, 
+             agent, 
+             counter,
+             episodes_counter,
+             steps,
+             outdir,
+             max_episode_len,
+             successful_score,
+             training_done,
+             global_step_hooks,
+             profile,
+             shared_objects
+             ): 
+    
+    #logging
+    logger = logging.getLogger(__name__)
+    
+    #random seed
+    random_seed.set_random_seed(process_idx)
+    
+    #environment
+    env = make_env(process_idx, test=False, args=full_args)
+    
+    #evaluator
+    if full_args.eval_interval is None:
+        evaluator = None
+    else:
+        evaluator = AsyncEvaluator(
+                n_runs=full_args.eval_n_runs,
+                eval_interval=full_args.eval_interval, 
+                outdir=outdir,
+                max_episode_len=max_episode_len,
+                step_offset=0,
+                explorer=None,
+                logger=logger)
+    
+    if evaluator is None:
+        eval_env = env
+    else:
+        eval_env = make_env(process_idx, test=True, args=full_args)
+    
+    #make_agent
+    if make_agent is not None:
+        raise Exception(__name__ + ":run_func: make_agent is not supported now!")
+    else:
+        local_agent = agent
+        
+    if shared_objects is not None:
+        logger.info("set_shared_objects")
+        set_shared_objects(local_agent, shared_objects)
+    local_agent.process_idx = process_idx
+    #train_loop
+    def f():
+        train_loop(
+            process_idx=process_idx,
+            counter=counter,
+            episodes_counter=episodes_counter,
+            agent=local_agent,
+            env=env,
+            steps=steps,
+            outdir=outdir,
+            max_episode_len=max_episode_len,
+            evaluator=evaluator,
+            successful_score=successful_score,
+            training_done=training_done,
+            eval_env=eval_env,
+            global_step_hooks=global_step_hooks,
+            logger=logger)
 
-def train_agent_async(outdir, processes, make_env,
-                      profile=False,
-                      steps=8 * 10 ** 7,
-                      eval_interval=10 ** 6,
-                      eval_n_runs=10,
-                      max_episode_len=None,
-                      step_offset=0,
-                      successful_score=None,
-                      eval_explorer=None,
-                      agent=None,
-                      make_agent=None,
-                      global_step_hooks=[],
-                      logger=None):
+    #profile
+    if profile:
+        import cProfile
+        cProfile.runctx('f()', globals(), locals(), 'profile-{}.out'.format(os.getpid()))
+    else:
+        f()
+
+def train_agent_async(outdir,                #yes
+                      processes,             #yes
+                      make_env,              #yes
+                      profile=False,         #yes
+                      steps=8 * 10 ** 7,     #yes
+                      eval_interval=10 ** 6, #yes
+                      eval_n_runs=10,        #yes      
+                      max_episode_len=None,  #yes
+                      step_offset=0,         #no
+                      successful_score=None, #no
+                      eval_explorer=None,    #no
+                      agent=None,            #yes
+                      make_agent=None,       #no
+                      global_step_hooks=[],  #no
+                      logger=None,           #no
+                      full_args=None         #yes
+                      ):         
     """Train agent asynchronously using multiprocessing.
 
     Either `agent` or `make_agent` must be specified.
@@ -165,15 +249,16 @@ def train_agent_async(outdir, processes, make_env,
         Trained agent.
     """
 
-    logger = logger or logging.getLogger(__name__)
-
     # Prevent numpy from using multiple threads
     os.environ['OMP_NUM_THREADS'] = '1'
 
     counter = mp.Value('l', 0)
     episodes_counter = mp.Value('l', 0)
     training_done = mp.Value('b', False)  # bool
-
+    
+    #async evaluator
+    logger = logger or logging.getLogger(__name__)
+    
     if agent is None:
         assert make_agent is not None
         agent = make_agent(0)
@@ -181,56 +266,25 @@ def train_agent_async(outdir, processes, make_env,
     shared_objects = extract_shared_objects_from_agent(agent)
     set_shared_objects(agent, shared_objects)
 
-    if eval_interval is None:
-        evaluator = None
-    else:
-        evaluator = AsyncEvaluator(
-            n_runs=eval_n_runs,
-            eval_interval=eval_interval, outdir=outdir,
-            max_episode_len=max_episode_len,
-            step_offset=step_offset,
-            explorer=eval_explorer,
-            logger=logger)
-
-    def run_func(process_idx):
-        random_seed.set_random_seed(process_idx)
-
-        env = make_env(process_idx, test=False)
-        if evaluator is None:
-            eval_env = env
-        else:
-            eval_env = make_env(process_idx, test=True)
-        if make_agent is not None:
-            local_agent = make_agent(process_idx)
-            set_shared_objects(local_agent, shared_objects)
-        else:
-            local_agent = agent
-        local_agent.process_idx = process_idx
-
-        def f():
-            train_loop(
-                process_idx=process_idx,
-                counter=counter,
-                episodes_counter=episodes_counter,
-                agent=local_agent,
-                env=env,
-                steps=steps,
-                outdir=outdir,
-                max_episode_len=max_episode_len,
-                evaluator=evaluator,
-                successful_score=successful_score,
-                training_done=training_done,
-                eval_env=eval_env,
-                global_step_hooks=global_step_hooks,
-                logger=logger)
-
-        if profile:
-            import cProfile
-            cProfile.runctx('f()', globals(), locals(),
-                            'profile-{}.out'.format(os.getpid()))
-        else:
-            f()
-
-    async.run_async(processes, run_func)
+    logger.info("Start Training...")
+    with mplog.open_queue() as log_queue:
+        async.run_async(processes, 
+                        run_func, 
+                        make_env, 
+                        make_agent, 
+                        full_args, 
+                        agent,
+                        counter,
+                        episodes_counter,
+                        steps,
+                        outdir,
+                        max_episode_len,
+                        successful_score,
+                        training_done,
+                        global_step_hooks,
+                        profile,
+                        log_queue,
+                        shared_objects
+                        )
 
     return agent

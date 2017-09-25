@@ -12,7 +12,7 @@ import chainer
 import numpy as np
 
 from chainerrl.misc import random_seed
-
+from chainerrl import mplog
 
 def ensure_initialized_update_rule(param):
     u = param.update_rule
@@ -24,7 +24,6 @@ def ensure_initialized_update_rule(param):
         """
 
         u.init_state(param)
-
 
 def set_shared_params(a, b):
     """Set shared params to a link.
@@ -40,7 +39,6 @@ def set_shared_params(a, b):
             param.data = np.frombuffer(
                 shared_param, dtype=param.data.dtype).reshape(param.data.shape)
 
-
 def make_params_not_shared(a):
     """Make a link's params not shared.
 
@@ -51,7 +49,6 @@ def make_params_not_shared(a):
     for param in a.params():
         param.data = param.data.copy()
 
-
 def assert_params_not_shared(a, b):
     assert isinstance(a, chainer.Link)
     assert isinstance(b, chainer.Link)
@@ -60,7 +57,6 @@ def assert_params_not_shared(a, b):
     for name, a_param in a_params.items():
         b_param = b_params[name]
         assert a_param.data.ctypes.data != b_param.data.ctypes.data
-
 
 def set_shared_states(a, b):
     assert isinstance(a, chainer.Optimizer)
@@ -74,7 +70,6 @@ def set_shared_states(a, b):
                 state_val,
                 dtype=s.dtype).reshape(s.shape)
 
-
 def extract_params_as_shared_arrays(link):
     assert isinstance(link, chainer.Link)
     shared_arrays = {}
@@ -82,12 +77,10 @@ def extract_params_as_shared_arrays(link):
         shared_arrays[param_name] = mp.RawArray('f', param.data.ravel())
     return shared_arrays
 
-
 def share_params_as_shared_arrays(link):
     shared_arrays = extract_params_as_shared_arrays(link)
     set_shared_params(link, shared_arrays)
     return shared_arrays
-
 
 def extract_states_as_shared_arrays(optimizer):
     assert isinstance(optimizer, chainer.Optimizer)
@@ -102,14 +95,65 @@ def extract_states_as_shared_arrays(optimizer):
                 state_name] = mp.RawArray('f', state_val.ravel())
     return shared_arrays
 
-
 def share_states_as_shared_arrays(optimizer):
     shared_arrays = extract_states_as_shared_arrays(optimizer)
     set_shared_states(optimizer, shared_arrays)
     return shared_arrays
 
+#public the function to be able to be called in windows #accepted
+def set_seed_and_run(process_idx, 
+                     run_func,
+                     make_env, 
+                     make_agent,
+                     full_args,
+                     agent,
+                     counter,
+                     episodes_counter,
+                     steps,
+                     outdir,
+                     max_episode_len,
+                     successful_score,
+                     training_done,
+                     global_step_hooks,
+                     profile,
+                     shared_objects
+                     ):
+     random_seed.set_random_seed(np.random.randint(0, 2 ** 31 - 1))
+     run_func(process_idx,
+              make_env, 
+              make_agent, 
+              full_args, 
+              agent, 
+              counter,
+              episodes_counter,
+              steps,
+              outdir,
+              max_episode_len,
+              successful_score,
+              training_done,
+              global_step_hooks,
+              profile,
+              shared_objects
+              )
 
-def run_async(n_process, run_func):
+def run_async(n_process, 
+              run_func, 
+              make_env,
+              make_agent,
+              full_args, 
+              agent, 
+              counter,
+              episodes_counter,
+              steps,
+              outdir,
+              max_episode_len,
+              successful_score,
+              training_done,
+              global_step_hooks,
+              profile,
+              log_queue,
+              shared_objects
+              ):
     """Run experiments asynchronously.
 
     Args:
@@ -118,21 +162,33 @@ def run_async(n_process, run_func):
     """
 
     processes = []
-
-    def set_seed_and_run(process_idx, run_func):
-        random_seed.set_random_seed(np.random.randint(0, 2 ** 32))
-        run_func(process_idx)
-
     for process_idx in range(n_process):
-        processes.append(mp.Process(target=set_seed_and_run, args=(
-            process_idx, run_func)))
+        processes.append(mp.Process(target=mplog.logged_call, 
+                                    args=(log_queue,
+                                          set_seed_and_run,
+                                          process_idx, 
+                                          run_func,
+                                          make_env, 
+                                          make_agent,
+                                          full_args,
+                                          agent,
+                                          counter,
+                                          episodes_counter,
+                                          steps,
+                                          outdir,
+                                          max_episode_len,
+                                          successful_score,
+                                          training_done,
+                                          global_step_hooks,
+                                          profile,
+                                          shared_objects
+                                          )))
 
     for p in processes:
         p.start()
-
+    
     for p in processes:
         p.join()
-
 
 def as_shared_objects(obj):
     if isinstance(obj, tuple):
@@ -149,8 +205,7 @@ def as_shared_objects(obj):
 
 def synchronize_to_shared_objects(obj, shared_memory):
     if isinstance(obj, tuple):
-        return tuple(synchronize_to_shared_objects(o, s)
-                     for o, s in zip(obj, shared_memory))
+        return tuple(synchronize_to_shared_objects(o, s) for o, s in zip(obj, shared_memory))
     elif isinstance(obj, chainer.Link):
         set_shared_params(obj, shared_memory)
         return obj
