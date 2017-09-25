@@ -123,7 +123,7 @@ def set_shared_objects(agent, shared_objects):
         setattr(agent, attr, new_value)
 
 #TODO:
-# TEST: accuracy and performance vs original linux version
+#TEST: accuracy and performance vs original linux version
 def run_func(process_idx, 
              make_env, 
              make_agent, 
@@ -154,14 +154,17 @@ def run_func(process_idx,
     if full_args.eval_interval is None:
         evaluator = None
     else:
-        evaluator = AsyncEvaluator(
-                n_runs=full_args.eval_n_runs,
-                eval_interval=full_args.eval_interval, 
-                outdir=outdir,
-                max_episode_len=max_episode_len,
-                step_offset=0,
-                explorer=None,
-                logger=logger)
+        if(process_idx == 0):
+            evaluator = AsyncEvaluator(
+                    n_runs=full_args.eval_n_runs,
+                    eval_interval=full_args.eval_interval, 
+                    outdir=outdir,
+                    max_episode_len=max_episode_len,
+                    step_offset=0,
+                    explorer=None,
+                    logger=logger)
+        else:
+            evaluator = None
     
     if evaluator is None:
         eval_env = env
