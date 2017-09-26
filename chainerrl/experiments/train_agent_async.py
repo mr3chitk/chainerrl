@@ -140,9 +140,10 @@ def run_func(process_idx,
              profile,
              shared_objects,
              step_offset,
-             eval_explorer
+             eval_explorer,
+             obs_space,
+             action_space
              ): 
-    
     #logging
     logger = logging.getLogger(__name__)
     
@@ -175,7 +176,7 @@ def run_func(process_idx,
     
     #make_agent
     if make_agent is not None:
-        local_agent = make_agent(process_idx) #TODO: fix later since not using this now
+        local_agent = make_agent(obs_space, action_space, full_args)
     else:
         local_agent = agent
     
@@ -221,10 +222,12 @@ def train_agent_async(outdir,                #yes
                       successful_score=None, #no
                       eval_explorer=None,    #no #not tested yet
                       agent=None,            #yes
-                      make_agent=None,       #no
+                      make_agent=None,       #yes
                       global_step_hooks=[],  #no
                       logger=None,           #no
-                      full_args=None         #yes
+                      full_args=None,        #yes
+                      obs_space=None,        #yes
+                      action_space=None      #yes
                       ):         
     """Train agent asynchronously using multiprocessing.
 
@@ -267,8 +270,8 @@ def train_agent_async(outdir,                #yes
     
     if agent is None:
         assert make_agent is not None
-        agent = make_agent(0)
-
+        agent = make_agent(obs_space, action_space, full_args)
+        
     shared_objects = extract_shared_objects_from_agent(agent)
     set_shared_objects(agent, shared_objects)
 
@@ -279,7 +282,7 @@ def train_agent_async(outdir,                #yes
                         make_env, 
                         make_agent, 
                         full_args, 
-                        agent,
+                        None, #agent won't be passed in since it contains locked objects
                         counter,
                         episodes_counter,
                         steps,
@@ -292,7 +295,9 @@ def train_agent_async(outdir,                #yes
                         log_queue,
                         shared_objects,
                         step_offset,
-                        eval_explorer
+                        eval_explorer,
+                        obs_space,
+                        action_space
                         )
 
     return agent

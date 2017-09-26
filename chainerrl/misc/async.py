@@ -118,7 +118,9 @@ def set_seed_and_run(process_idx,
                      profile,
                      shared_objects,
                      step_offset,
-                     eval_explorer
+                     eval_explorer,
+                     obs_space,
+                     action_space
                      ):
      random_seed.set_random_seed(np.random.randint(0, 2 ** 31 - 1))
      run_func(process_idx,
@@ -137,7 +139,9 @@ def set_seed_and_run(process_idx,
               profile,
               shared_objects,
               step_offset,
-              eval_explorer
+              eval_explorer,
+              obs_space,
+              action_space
               )
 
 #contains some duplicated params since we have full_arg
@@ -160,7 +164,9 @@ def run_async(n_process,
               log_queue,
               shared_objects,
               step_offset,
-              eval_explorer
+              eval_explorer,
+              obs_space,
+              action_space
               ):
     """Run experiments asynchronously.
 
@@ -191,7 +197,9 @@ def run_async(n_process,
                                           profile,
                                           shared_objects,
                                           step_offset,
-                                          eval_explorer
+                                          eval_explorer,
+                                          obs_space,
+                                          action_space
                                           )))
 
     for p in processes:

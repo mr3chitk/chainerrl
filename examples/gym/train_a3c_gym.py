@@ -102,6 +102,26 @@ def make_env(process_idx, test, args):
         misc.env_modifiers.make_rendered(env)
     return env
 
+def make_agent(obs_space, action_space, args):
+    # Switch policy types accordingly to action space types
+    if args.arch == 'LSTMGaussian':
+        model = A3CLSTMGaussian(obs_space.low.size, action_space.low.size)
+    elif args.arch == 'FFSoftmax':
+        model = A3CFFSoftmax(obs_space.low.size, action_space.n)
+    elif args.arch == 'FFMellowmax':
+        model = A3CFFMellowmax(obs_space.low.size, action_space.n)
+
+    opt = rmsprop_async.RMSpropAsync(lr=args.lr, eps=args.rmsprop_epsilon, alpha=0.99)
+    opt.setup(model)
+    opt.add_hook(chainer.optimizer.GradientClipping(40))
+    if args.weight_decay > 0:
+        opt.add_hook(NonbiasWeightDecay(args.weight_decay))
+
+    agent = a3c.A3C(model, opt, t_max=args.t_max, gamma=0.99, beta=args.beta, phi=phi)
+    if args.load:
+        agent.load(args.load)
+    return agent
+
 def main():
     import logging
     
@@ -147,29 +167,11 @@ def main():
     obs_space = sample_env.observation_space
     action_space = sample_env.action_space
 
-    # Switch policy types accordingly to action space types
-    if args.arch == 'LSTMGaussian':
-        model = A3CLSTMGaussian(obs_space.low.size, action_space.low.size)
-    elif args.arch == 'FFSoftmax':
-        model = A3CFFSoftmax(obs_space.low.size, action_space.n)
-    elif args.arch == 'FFMellowmax':
-        model = A3CFFMellowmax(obs_space.low.size, action_space.n)
-
-    opt = rmsprop_async.RMSpropAsync(lr=args.lr, eps=args.rmsprop_epsilon, alpha=0.99)
-    opt.setup(model)
-    opt.add_hook(chainer.optimizer.GradientClipping(40))
-    if args.weight_decay > 0:
-        opt.add_hook(NonbiasWeightDecay(args.weight_decay))
-
-    agent = a3c.A3C(model, opt, t_max=args.t_max, gamma=0.99, beta=args.beta, phi=phi)
-    if args.load:
-        agent.load(args.load)
-
     if args.demo:
         env = make_env(0, True, args)
         eval_stats = experiments.eval_performance(
             env=env,
-            agent=agent,
+            agent=make_agent(obs_space,action_space, args),
             n_runs=args.eval_n_runs,
             max_episode_len=timestep_limit)
         print('n_runs: {} mean: {} median: {} stdev {}'.format(
@@ -177,16 +179,18 @@ def main():
             eval_stats['stdev']))
     else:
         experiments.train_agent_async(
-            agent=agent,                      #agent to train
-            outdir=args.outdir,               #ouput dir
-            processes=args.processes,         #num of processes
-            make_env=make_env,                #function to make environment
-            profile=args.profile,             #provide deterministic profiling
-            steps=args.steps,                 #num of steps
-            eval_n_runs=args.eval_n_runs,     #num of evaluations when interval hits
-            eval_interval=args.eval_interval, #num of steps before start an evaluation
-            max_episode_len=timestep_limit,   #max steps per episode
-            full_args=args                    #full args to re-makeenv in async training
+            make_agent=make_agent,
+            outdir=args.outdir,
+            processes=args.processes,
+            make_env=make_env,
+            profile=args.profile,
+            steps=args.steps,
+            eval_n_runs=args.eval_n_runs,
+            eval_interval=args.eval_interval,
+            max_episode_len=timestep_limit,
+            full_args=args,
+            obs_space=obs_space, 
+            action_space=action_space
             )   
 
 if __name__ == '__main__':
