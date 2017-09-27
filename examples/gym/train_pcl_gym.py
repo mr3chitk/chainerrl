@@ -35,16 +35,13 @@ def make_env(process_idx, test, args):
     env = gym.make(args.env)
     if args.monitor and process_idx == 0:
         env = gym.wrappers.Monitor(env, args.outdir)
-    # Scale rewards observed by agents
     if not test:
-        misc.env_modifiers.make_reward_filtered(
-            env, lambda x: x * args.reward_scale_factor)
+        misc.env_modifiers.make_reward_filtered(env, lambda x: x * args.reward_scale_factor)
     if args.render and process_idx == 0 and not test:
         misc.env_modifiers.make_rendered(env)
     return env
 
 def make_agent(obs_space, action_space, args):
-    # Switch policy types accordingly to action space types
     if isinstance(action_space, gym.spaces.Box):
         model = chainerrl.agents.pcl.PCLSeparateModel(
             pi=chainerrl.policies.FCGaussianPolicy(
@@ -97,8 +94,7 @@ def make_agent(obs_space, action_space, args):
                 wait_priority_after_sampling=False,
                 return_sample_weights=False)
     else:
-        replay_buffer = chainerrl.replay_buffer.EpisodicReplayBuffer(
-            capacity=5 * 10 ** 3)
+        replay_buffer = chainerrl.replay_buffer.EpisodicReplayBuffer(capacity=5 * 10 ** 3)
 
     agent = chainerrl.agents.PCL(
         model, opt, replay_buffer=replay_buffer,
@@ -135,7 +131,7 @@ def main():
     parser.add_argument('--t-max', type=int, default=None)
     parser.add_argument('--tau', type=float, default=1e-2)
     parser.add_argument('--profile', action='store_true')
-    parser.add_argument('--steps', type=int, default=8 * 10 ** 7)
+    parser.add_argument('--steps', type=int, default=8 * 10 ** 6)
     parser.add_argument('--eval-interval', type=int, default=10 ** 5)
     parser.add_argument('--eval-n-runs', type=int, default=10)
     parser.add_argument('--reward-scale-factor', type=float, default=1e-2)
@@ -143,7 +139,7 @@ def main():
     parser.add_argument('--lr', type=float, default=7e-4)
     parser.add_argument('--demo', action='store_true', default=False)
     parser.add_argument('--load', type=str, default='')
-    parser.add_argument('--logger-level', type=int, default=logging.DEBUG)
+    parser.add_argument('--logger-level', type=int, default=logging.INFO)
     parser.add_argument('--monitor', action='store_true')
     parser.add_argument('--train-async', action='store_true', default=False)
     parser.add_argument('--prioritized-replay', action='store_true', default=False)

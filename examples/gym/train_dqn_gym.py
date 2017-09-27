@@ -37,15 +37,13 @@ from chainerrl import replay_buffer
 
 def main():
     import logging
-    logging.basicConfig(level=logging.DEBUG)
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--outdir', type=str, default='dqn_out')
     parser.add_argument('--env', type=str, default='Pendulum-v0')
     parser.add_argument('--seed', type=int, default=None)
     parser.add_argument('--gpu', type=int, default=0)
-    parser.add_argument('--final-exploration-steps',
-                        type=int, default=10 ** 4)
+    parser.add_argument('--final-exploration-steps', type=int, default=10 ** 4)
     parser.add_argument('--start-epsilon', type=float, default=1.0)
     parser.add_argument('--end-epsilon', type=float, default=0.1)
     parser.add_argument('--demo', action='store_true', default=False)
@@ -68,11 +66,20 @@ def main():
     parser.add_argument('--render-eval', action='store_true')
     parser.add_argument('--monitor', action='store_true')
     parser.add_argument('--reward-scale-factor', type=float, default=1e-3)
+    parser.add_argument('--logger-level', type=int, default=logging.INFO)
     args = parser.parse_args()
 
-    args.outdir = experiments.prepare_output_dir(
-        args, args.outdir, argv=sys.argv)
+    args.outdir = experiments.prepare_output_dir(args, args.outdir, argv=sys.argv)
     print('Output files are saved in {}'.format(args.outdir))
+    
+    #config logging
+    logger = logging.getLogger()
+    logger.setLevel(args.logger_level)
+    logger.handlers = []
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
 
     if args.seed is not None:
         misc.set_random_seed(args.seed)
@@ -87,16 +94,13 @@ def main():
         if isinstance(env.action_space, spaces.Box):
             misc.env_modifiers.make_action_filtered(env, clip_action_filter)
         if not for_eval:
-            misc.env_modifiers.make_reward_filtered(
-                env, lambda x: x * args.reward_scale_factor)
-        if ((args.render_eval and for_eval) or
-                (args.render_train and not for_eval)):
+            misc.env_modifiers.make_reward_filtered(env, lambda x: x * args.reward_scale_factor)
+        if ((args.render_eval and for_eval) or (args.render_train and not for_eval)):
             misc.env_modifiers.make_rendered(env)
         return env
 
     env = make_env(for_eval=False)
-    timestep_limit = env.spec.tags.get(
-        'wrapper_config.TimeLimit.max_episode_steps')
+    timestep_limit = env.spec.tags.get('wrapper_config.TimeLimit.max_episode_steps')
     obs_size = env.observation_space.low.size
     action_space = env.action_space
 
@@ -135,8 +139,7 @@ def main():
             betasteps = \
                 (args.steps - timestep_limit * args.replay_start_size) \
                 // args.update_interval
-            rbuf = replay_buffer.PrioritizedEpisodicReplayBuffer(
-                rbuf_capacity, betasteps=betasteps)
+            rbuf = replay_buffer.PrioritizedEpisodicReplayBuffer(rbuf_capacity, betasteps=betasteps)
         else:
             rbuf = replay_buffer.EpisodicReplayBuffer(rbuf_capacity)
     else:
@@ -147,8 +150,7 @@ def main():
         if args.prioritized_replay:
             betasteps = (args.steps - args.replay_start_size) \
                 // args.update_interval
-            rbuf = replay_buffer.PrioritizedReplayBuffer(
-                rbuf_capacity, betasteps=betasteps)
+            rbuf = replay_buffer.PrioritizedReplayBuffer(rbuf_capacity, betasteps=betasteps)
         else:
             rbuf = replay_buffer.ReplayBuffer(rbuf_capacity)
 
@@ -184,7 +186,6 @@ def main():
             eval_n_runs=args.eval_n_runs, eval_interval=args.eval_interval,
             outdir=args.outdir, eval_env=eval_env,
             max_episode_len=timestep_limit)
-
 
 if __name__ == '__main__':
     main()

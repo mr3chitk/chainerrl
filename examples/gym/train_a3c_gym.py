@@ -41,8 +41,7 @@ class A3CFFSoftmax(chainer.ChainList, a3c.A3CModel):
     """An example of A3C feedforward softmax policy."""
 
     def __init__(self, ndim_obs, n_actions, hidden_sizes=(200, 200)):
-        self.pi = policies.SoftmaxPolicy(
-            model=links.MLP(ndim_obs, n_actions, hidden_sizes))
+        self.pi = policies.SoftmaxPolicy(model=links.MLP(ndim_obs, n_actions, hidden_sizes))
         self.v = links.MLP(ndim_obs, 1, hidden_sizes=hidden_sizes)
         super().__init__(self.pi, self.v)
 
@@ -54,8 +53,7 @@ class A3CFFMellowmax(chainer.ChainList, a3c.A3CModel):
     """An example of A3C feedforward mellowmax policy."""
 
     def __init__(self, ndim_obs, n_actions, hidden_sizes=(200, 200)):
-        self.pi = policies.MellowmaxPolicy(
-            model=links.MLP(ndim_obs, n_actions, hidden_sizes))
+        self.pi = policies.MellowmaxPolicy(model=links.MLP(ndim_obs, n_actions, hidden_sizes))
         self.v = links.MLP(ndim_obs, 1, hidden_sizes=hidden_sizes)
         super().__init__(self.pi, self.v)
 
@@ -71,11 +69,9 @@ class A3CLSTMGaussian(chainer.ChainList, a3c.A3CModel, RecurrentChainMixin):
         self.v_head = L.Linear(obs_size, hidden_size)
         self.pi_lstm = L.LSTM(hidden_size, lstm_size)
         self.v_lstm = L.LSTM(hidden_size, lstm_size)
-        self.pi = policies.LinearGaussianPolicyWithDiagonalCovariance(
-            lstm_size, action_size)
+        self.pi = policies.LinearGaussianPolicyWithDiagonalCovariance(lstm_size, action_size)
         self.v = v_function.FCVFunction(lstm_size)
-        super().__init__(self.pi_head, self.v_head,
-                         self.pi_lstm, self.v_lstm, self.pi, self.v)
+        super().__init__(self.pi_head, self.v_head, self.pi_lstm, self.v_lstm, self.pi, self.v)
 
     def pi_and_v(self, state):
 
@@ -103,7 +99,6 @@ def make_env(process_idx, test, args):
     return env
 
 def make_agent(obs_space, action_space, args):
-    # Switch policy types accordingly to action space types
     if args.arch == 'LSTMGaussian':
         model = A3CLSTMGaussian(obs_space.low.size, action_space.low.size)
     elif args.arch == 'FFSoftmax':
@@ -134,7 +129,7 @@ def main():
     parser.add_argument('--t-max', type=int, default=5)
     parser.add_argument('--beta', type=float, default=1e-2)
     parser.add_argument('--profile', action='store_true')
-    parser.add_argument('--steps', type=int, default=8 * 10 ** 7)
+    parser.add_argument('--steps', type=int, default=8 * 10 ** 6)
     parser.add_argument('--eval-interval', type=int, default=10 ** 5)
     parser.add_argument('--eval-n-runs', type=int, default=10)
     parser.add_argument('--reward-scale-factor', type=float, default=1e-2)

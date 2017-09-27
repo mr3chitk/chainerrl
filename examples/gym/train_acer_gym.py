@@ -64,19 +64,16 @@ def make_agent(obs_space, action_space, args):
             pi=links.Sequence(
                 L.Linear(obs_space.low.size, args.n_hidden_channels),
                 F.relu,
-                L.Linear(args.n_hidden_channels, action_space.n,
-                         initialW=LeCunNormal(1e-3)),
+                L.Linear(args.n_hidden_channels, action_space.n, initialW=LeCunNormal(1e-3)),
                 SoftmaxDistribution),
             q=links.Sequence(
                 L.Linear(obs_space.low.size, args.n_hidden_channels),
                 F.relu,
-                L.Linear(args.n_hidden_channels, action_space.n,
-                         initialW=LeCunNormal(1e-3)),
+                L.Linear(args.n_hidden_channels, action_space.n, initialW=LeCunNormal(1e-3)),
                 DiscreteActionValue),
         )
 
-    opt = rmsprop_async.RMSpropAsync(
-        lr=args.lr, eps=args.rmsprop_epsilon, alpha=0.99)
+    opt = rmsprop_async.RMSpropAsync(lr=args.lr, eps=args.rmsprop_epsilon, alpha=0.99)
     opt.setup(model)
     opt.add_hook(chainer.optimizer.GradientClipping(40))
 
@@ -107,7 +104,7 @@ def main():
     parser.add_argument('--n-hidden-channels', type=int, default=100)
     parser.add_argument('--n-hidden-layers', type=int, default=2)
     parser.add_argument('--replay-capacity', type=int, default=5000)
-    parser.add_argument('--replay-start-size', type=int, default=10 ** 2) #3
+    parser.add_argument('--replay-start-size', type=int, default=10 ** 3)
     parser.add_argument('--disable-online-update', action='store_true')
     parser.add_argument('--beta', type=float, default=1e-2)
     parser.add_argument('--profile', action='store_true')
