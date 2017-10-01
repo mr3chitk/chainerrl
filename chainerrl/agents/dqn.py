@@ -389,8 +389,7 @@ class DQN(agent.AttributeSavingMixin, agent.Agent):
     def act(self, state):
         with chainer.using_config('train', False):
             with chainer.no_backprop_mode():
-                action_value = self.model(
-                    self.batch_states([state], self.xp, self.phi))
+                action_value = self.model(self.batch_states([state], self.xp, self.phi))
                 q = float(action_value.max.data)
                 action = cuda.to_cpu(action_value.greedy_actions.data)[0]
 
@@ -405,11 +404,9 @@ class DQN(agent.AttributeSavingMixin, agent.Agent):
 
         with chainer.using_config('train', False):
             with chainer.no_backprop_mode():
-                action_value = self.model(
-                    self.batch_states([state], self.xp, self.phi))
+                action_value = self.model(self.batch_states([state], self.xp, self.phi))
                 q = float(action_value.max.data)
-                greedy_action = cuda.to_cpu(action_value.greedy_actions.data)[
-                    0]
+                greedy_action = cuda.to_cpu(action_value.greedy_actions.data)[0]
 
         # Update stats
         self.average_q *= self.average_q_decay
