@@ -9,9 +9,6 @@ def batch_states(states, xp, phi):
     Return:
         the object which will be given as input to the model.
     """
-
-    #states = [phi(s) for s in states]
-    #return xp.asarray(states)
     
     states = [phi(s) for s in states]
     len_col = len(states)

@@ -122,8 +122,6 @@ def set_shared_objects(agent, shared_objects):
             getattr(agent, attr), shared)
         setattr(agent, attr, new_value)
 
-#TODO:
-#TEST: accuracy and performance vs original linux version
 def run_func(process_idx, 
              make_env, 
              make_agent, 
@@ -141,7 +139,7 @@ def run_func(process_idx,
              shared_objects,
              step_offset,
              eval_explorer,
-             obs_space,
+             obs_size,
              action_space
              ): 
     #logging
@@ -176,7 +174,7 @@ def run_func(process_idx,
     
     #make_agent
     if make_agent is not None:
-        local_agent = make_agent(obs_space, action_space, full_args)
+        local_agent = make_agent(obs_size, action_space, full_args)
     else:
         local_agent = agent
     
@@ -216,17 +214,17 @@ def train_agent_async(outdir,                #yes
                       profile=False,         #yes
                       steps=8 * 10 ** 7,     #yes
                       eval_interval=10 ** 6, #yes
-                      eval_n_runs=10,        #yes      
+                      eval_n_runs=10,        #yes
                       max_episode_len=None,  #yes
                       step_offset=0,         #no
                       successful_score=None, #no
-                      eval_explorer=None,    #no #not tested yet
+                      eval_explorer=None,    #no
                       agent=None,            #yes
                       make_agent=None,       #yes
                       global_step_hooks=[],  #no
                       logger=None,           #no
                       full_args=None,        #yes
-                      obs_space=None,        #yes
+                      obs_size=None,         #yes
                       action_space=None      #yes
                       ):         
     """Train agent asynchronously using multiprocessing.
@@ -270,7 +268,7 @@ def train_agent_async(outdir,                #yes
     
     if agent is None:
         assert make_agent is not None
-        agent = make_agent(obs_space, action_space, full_args)
+        agent = make_agent(obs_size, action_space, full_args)
         
     shared_objects = extract_shared_objects_from_agent(agent)
     set_shared_objects(agent, shared_objects)
@@ -296,7 +294,7 @@ def train_agent_async(outdir,                #yes
                         shared_objects,
                         step_offset,
                         eval_explorer,
-                        obs_space,
+                        obs_size,
                         action_space
                         )
 

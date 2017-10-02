@@ -119,7 +119,7 @@ def set_seed_and_run(process_idx,
                      shared_objects,
                      step_offset,
                      eval_explorer,
-                     obs_space,
+                     obs_size,
                      action_space
                      ):
      random_seed.set_random_seed(np.random.randint(0, 2 ** 31 - 1))
@@ -140,7 +140,7 @@ def set_seed_and_run(process_idx,
               shared_objects,
               step_offset,
               eval_explorer,
-              obs_space,
+              obs_size,
               action_space
               )
 
@@ -165,7 +165,7 @@ def run_async(n_process,
               shared_objects,
               step_offset,
               eval_explorer,
-              obs_space,
+              obs_size,
               action_space
               ):
     """Run experiments asynchronously.
@@ -198,7 +198,7 @@ def run_async(n_process,
                                           shared_objects,
                                           step_offset,
                                           eval_explorer,
-                                          obs_space,
+                                          obs_size,
                                           action_space
                                           )))
 
