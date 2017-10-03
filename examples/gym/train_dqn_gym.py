@@ -40,7 +40,7 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--outdir', type=str, default='dqn_out')
-    parser.add_argument('--env', type=str, default='Pendulum-v0')
+    parser.add_argument('--env', type=str, default='CartPole-v0')
     parser.add_argument('--seed', type=int, default=None)
     parser.add_argument('--gpu', type=int, default=0)
     parser.add_argument('--final-exploration-steps', type=int, default=10 ** 4)
@@ -155,7 +155,7 @@ def main():
             rbuf = replay_buffer.ReplayBuffer(rbuf_capacity)
 
     def phi(obs):
-        return obs.astype(np.float32)
+        return [obs.astype(np.float32)]
 
     agent = DQN(q_func, opt, rbuf, gpu=args.gpu, gamma=args.gamma,
                 explorer=explorer, replay_start_size=args.replay_start_size,

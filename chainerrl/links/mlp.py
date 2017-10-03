@@ -12,7 +12,6 @@ from chainer import links as L
 
 from chainerrl.initializers import LeCunNormal
 
-
 class MLP(chainer.Chain):
     """Multi-Layer Perceptron"""
 
@@ -38,8 +37,9 @@ class MLP(chainer.Chain):
                                        initialW=LeCunNormal(last_wscale))
 
     def __call__(self, x):
-        h = x
+        h = x[0]
         if self.hidden_sizes:
             for l in self.hidden_layers:
                 h = self.nonlinearity(l(h))
+        
         return self.output(h)

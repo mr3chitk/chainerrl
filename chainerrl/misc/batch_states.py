@@ -10,13 +10,8 @@ def batch_states(states, xp, phi):
         the object which will be given as input to the model.
     """
     
-    states = [phi(s) for s in states]
+    states  = [phi(s) for s in states]
     len_col = len(states)
-    if(len_col > 0):
-        len_row = len(states[0])
-    else:
-        len_row = 0
-    result = []
-    for ix in range(len_row):
-        result.append(xp.asarray([row[ix] for row in states]))
+    len_row = len(states[0])
+    result  = [xp.asarray([row[ix] for row in states]) for ix in range(len_row)]
     return result
