@@ -35,7 +35,7 @@ from chainerrl.recurrent import RecurrentChainMixin
 from chainerrl import v_function
 
 def phi(obs):
-    return obs.astype(np.float32)
+    return [obs.astype(np.float32)]
 
 class A3CFFSoftmax(chainer.ChainList, a3c.A3CModel):
     """An example of A3C feedforward softmax policy."""
@@ -98,13 +98,13 @@ def make_env(process_idx, test, args):
         misc.env_modifiers.make_rendered(env)
     return env
 
-def make_agent(obs_space, action_space, args):
+def make_agent(obs_size, action_space, args):
     if args.arch == 'LSTMGaussian':
-        model = A3CLSTMGaussian(obs_space.low.size, action_space.low.size)
+        model = A3CLSTMGaussian(obs_size, action_space.low.size)
     elif args.arch == 'FFSoftmax':
-        model = A3CFFSoftmax(obs_space.low.size, action_space.n)
+        model = A3CFFSoftmax(obs_size, action_space.n)
     elif args.arch == 'FFMellowmax':
-        model = A3CFFMellowmax(obs_space.low.size, action_space.n)
+        model = A3CFFMellowmax(obs_size, action_space.n)
 
     opt = rmsprop_async.RMSpropAsync(lr=args.lr, eps=args.rmsprop_epsilon, alpha=0.99)
     opt.setup(model)
@@ -159,14 +159,14 @@ def main():
 
     sample_env = gym.make(args.env)
     timestep_limit = sample_env.spec.tags.get('wrapper_config.TimeLimit.max_episode_steps')
-    obs_space = sample_env.observation_space
+    obs_size = sample_env.observation_space.low.size
     action_space = sample_env.action_space
 
     if args.demo:
         env = make_env(0, True, args)
         eval_stats = experiments.eval_performance(
             env=env,
-            agent=make_agent(obs_space,action_space, args),
+            agent=make_agent(obs_size,action_space, args),
             n_runs=args.eval_n_runs,
             max_episode_len=timestep_limit)
         print('n_runs: {} mean: {} median: {} stdev {}'.format(
@@ -184,7 +184,7 @@ def main():
             eval_interval=args.eval_interval,
             max_episode_len=timestep_limit,
             full_args=args,
-            obs_space=obs_space, 
+            obs_size=obs_size, 
             action_space=action_space
             )   
 
