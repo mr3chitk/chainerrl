@@ -11,7 +11,6 @@ def batch_states(states, xp, phi):
     """
     
     states  = [phi(s) for s in states]
-    len_col = len(states)
     len_row = len(states[0])
     result  = [xp.asarray([row[ix] for row in states]) for ix in range(len_row)]
     return result

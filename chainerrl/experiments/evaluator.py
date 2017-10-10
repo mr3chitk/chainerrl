@@ -118,9 +118,13 @@ def save_agent(agent, t, outdir, logger, suffix=''):
 
 def update_best_model(agent, outdir, t, old_max_score, new_max_score, logger):
     # Save the best model so far
-    logger.info('The best score is updated %s -> %s',
-                old_max_score, new_max_score)
+    logger.info('The best score is updated %s -> %s', old_max_score, new_max_score)
     save_agent(agent, t, outdir, logger)
+
+
+def update_episode_model(agent, outdir, t, logger, episode):
+    suff = "ep{}".format(episode)
+    save_agent(agent, t, outdir, logger, suffix=suff)
 
 
 class Evaluator(object):
@@ -169,6 +173,9 @@ class Evaluator(object):
             update_best_model(self.agent, self.outdir, t, self.max_score, mean,
                               logger=self.logger)
             self.max_score = mean
+        
+        #new save to save each episode
+        update_episode_model(self.agent, self.outdir, t, logger=self.logger, episode=episodes)
         return mean
 
     def evaluate_if_necessary(self, t, episodes):
@@ -233,6 +240,9 @@ class AsyncEvaluator(object):
                     agent, self.outdir, t, self._max_score.value, mean,
                     logger=self.logger)
                 self._max_score.value = mean
+            
+            #new save to save each episode
+            update_episode_model(self.agent, self.outdir, t, logger=self.logger, episode=episodes)
         return mean
 
     def write_header(self, agent):
