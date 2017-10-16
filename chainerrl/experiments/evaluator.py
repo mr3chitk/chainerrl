@@ -242,7 +242,7 @@ class AsyncEvaluator(object):
                 self._max_score.value = mean
             
             #new save to save each episode
-            update_episode_model(self.agent, self.outdir, t, logger=self.logger, episode=episodes)
+            update_episode_model(agent, self.outdir, t, logger=self.logger, episode=episodes)
         return mean
 
     def write_header(self, agent):
