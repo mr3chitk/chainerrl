@@ -34,9 +34,10 @@ class ResidualDQN(DQN):
         return batch_rewards + self.gamma * (1.0 - batch_terminal) * next_q_max
 
     def _compute_y_and_t(self, exp_batch, gamma):
+        batch_size = exp_batch['reward'].shape[0]
 
         batch_state = exp_batch['state']
-        batch_size = len(batch_state)
+        #batch_size = len(batch_state)
 
         # Compute Q-values for current states
         qout = self.q_function(batch_state)

@@ -13,7 +13,6 @@ from chainerrl.experiments.evaluator import save_agent
 from chainerrl.misc.ask_yes_no import ask_yes_no
 from chainerrl.misc.makedirs import makedirs
 
-
 def save_agent_replay_buffer(agent, t, outdir, suffix='', logger=None):
     logger = logger or logging.getLogger(__name__)
     filename = os.path.join(outdir, '{}{}.replay.pkl'.format(t, suffix))
@@ -47,20 +46,20 @@ def train_agent(agent, env, steps, outdir, max_episode_len=None,
 
     episode_len = 0
     try:
-        while t < steps:
-
+        while True:
             # a_t
             action = agent.act_and_train(obs, r)
             # o_{t+1}, r_{t+1}
             obs, r, done, info = env.step(action)
+            
             t += 1
             episode_r += r
             episode_len += 1
-
+            
             for hook in step_hooks:
                 hook(env, agent, t)
 
-            if done or episode_len == max_episode_len or t == steps:
+            if done or episode_len == max_episode_len:
                 agent.stop_episode_and_train(obs, r, done=done)
                 logger.info('outdir:%s step:%s episode:%s R:%s',
                             outdir, t, episode_idx, episode_r)
@@ -71,7 +70,7 @@ def train_agent(agent, env, steps, outdir, max_episode_len=None,
                     if (successful_score is not None and
                             evaluator.max_score >= successful_score):
                         break
-                if t == steps:
+                if t >= steps:
                     break
                 # Start a new episode
                 episode_r = 0
@@ -94,7 +93,7 @@ def train_agent_with_evaluation(
         agent, env, steps, eval_n_runs, eval_interval,
         outdir, max_episode_len=None, step_offset=0, eval_explorer=None,
         eval_max_episode_len=None, eval_env=None, successful_score=None,
-        step_hooks=[], logger=None):
+        step_hooks=[], logger=None, save_ep_after_step = None):
     """Train an agent while regularly evaluating it.
 
     Args:
@@ -133,7 +132,8 @@ def train_agent_with_evaluation(
                           explorer=eval_explorer,
                           env=eval_env,
                           step_offset=step_offset,
-                          logger=logger)
+                          logger=logger,
+                          save_ep_after_step=save_ep_after_step)
 
     train_agent(
         agent, env, steps, outdir,

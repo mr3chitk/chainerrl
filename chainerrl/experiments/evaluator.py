@@ -123,7 +123,7 @@ def update_best_model(agent, outdir, t, old_max_score, new_max_score, logger):
 
 
 def update_episode_model(agent, outdir, t, logger, episode):
-    suff = "ep{}".format(episode)
+    suff = "_ep{}".format(episode)
     save_agent(agent, t, outdir, logger, suffix=suff)
 
 
@@ -131,7 +131,7 @@ class Evaluator(object):
 
     def __init__(self, agent, env, n_runs, eval_interval,
                  outdir, max_episode_len=None, explorer=None,
-                 step_offset=0, logger=None):
+                 step_offset=0, logger=None, save_ep_after_step = None):
         self.agent = agent
         self.env = env
         self.max_score = np.finfo(np.float32).min
@@ -145,7 +145,8 @@ class Evaluator(object):
         self.prev_eval_t = (self.step_offset -
                             self.step_offset % self.eval_interval)
         self.logger = logger or logging.getLogger(__name__)
-
+        self.save_ep_after_step = save_ep_after_step
+        
         # Write a header line first
         with open(os.path.join(self.outdir, 'scores.txt'), 'w') as f:
             custom_columns = tuple(t[0] for t in self.agent.get_statistics())
@@ -183,6 +184,9 @@ class Evaluator(object):
             score = self.evaluate_and_update_max_score(t, episodes)
             self.prev_eval_t = t - t % self.eval_interval
             return score
+        if self.save_ep_after_step is not None:
+            if(t>self.save_ep_after_step):
+                update_episode_model(self.agent, self.outdir, t, logger=self.logger, episode=episodes)
         return None
 
 
