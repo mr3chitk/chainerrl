@@ -1,3 +1,4 @@
+import numpy as np
 def batch_states(states, xp, phi):
     """The default method for making batch of observations.
 
@@ -9,8 +10,7 @@ def batch_states(states, xp, phi):
     Return:
         the object which will be given as input to the model.
     """
-    
     states  = [phi(s) for s in states]
-    len_row = len(states[0])
-    result  = [xp.asarray([row[ix] for row in states]) for ix in range(len_row)]
+    len_col = len(states[0])
+    result  = [xp.asarray([row[ix] for row in states]) for ix in range(len_col)]
     return result

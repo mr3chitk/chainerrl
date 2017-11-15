@@ -21,6 +21,7 @@ from chainerrl.recurrent import state_reset
 from chainerrl.replay_buffer import batch_experiences
 from chainerrl.replay_buffer import ReplayUpdater
 
+import time
 
 def _to_device(obj, gpu):
     if isinstance(obj, tuple):
@@ -379,6 +380,12 @@ class DQN(agent.AttributeSavingMixin, agent.Agent):
             q_values = list(cuda.to_cpu(
                 self.model(batch_x).q_values))
             return q_values
+    
+    def cal_custom_q(self, state):
+        with chainer.using_config('train', False):
+            with chainer.no_backprop_mode():
+                action_value = self.model(self.batch_states([state], self.xp, self.phi))
+                return action_value
 
     def _to_my_device(self, model):
         if self.gpu >= 0:
@@ -401,13 +408,14 @@ class DQN(agent.AttributeSavingMixin, agent.Agent):
         return action
 
     def act_and_train(self, state, reward):
-
+        #start = time.time()
         with chainer.using_config('train', False):
             with chainer.no_backprop_mode():
                 action_value = self.model(self.batch_states([state], self.xp, self.phi))
                 q = float(action_value.max.data)
                 greedy_action = cuda.to_cpu(action_value.greedy_actions.data)[0]
-
+        #print(time.time() - start)
+        
         # Update stats
         self.average_q *= self.average_q_decay
         self.average_q += (1 - self.average_q_decay) * q
@@ -439,7 +447,7 @@ class DQN(agent.AttributeSavingMixin, agent.Agent):
         self.replay_updater.update_if_necessary(self.t)
 
         self.logger.debug('t:%s r:%s a:%s', self.t, reward, action)
-
+        
         return self.last_action
 
     def stop_episode_and_train(self, state, reward, done=False):
