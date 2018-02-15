@@ -110,15 +110,14 @@ def record_stats(outdir, values):
         print('\t'.join(str(x) for x in values), file=f)
 
 
-def save_agent(agent, t, outdir, logger, suffix='', w_prefix = True):
-    if(w_prefix == True):
-        dirname = os.path.join(outdir, '{}{}'.format(t, suffix))
-    else:
-        dirname = os.path.join(outdir, '{}'.format(suffix))
+def save_agent(agent, t, outdir, logger, suffix=''):
+    dirname = os.path.join(outdir, '{}{}'.format(t, suffix))
     agent.save(dirname)
     logger.info('Saved the agent to %s', dirname)
 
+
 def update_best_model(agent, outdir, t, old_max_score, new_max_score, logger):
+    # Save the best model so far
     logger.info('The best score is updated %s -> %s', old_max_score, new_max_score)
     save_agent(agent, t, outdir, logger)
 

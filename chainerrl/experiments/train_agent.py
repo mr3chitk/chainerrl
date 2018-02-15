@@ -86,7 +86,7 @@ def train_agent(agent, env, steps, outdir, max_episode_len=None,
         raise
 
     # Save the final model
-    save_agent(agent, t, outdir, logger, suffix='finish', w_prefix=False)
+    save_agent(agent, t, outdir, logger, suffix='_finish')
 
 
 def train_agent_with_evaluation(
