@@ -16,6 +16,7 @@ from __future__ import absolute_import
 from future import standard_library
 standard_library.install_aliases()
 import argparse
+import os
 
 import chainer
 import gym
@@ -57,6 +58,11 @@ def make_agent(obs_space, action_space, args):
             n_hidden_layers=2,
             nonlinearity=chainer.functions.leaky_relu,
         )
+
+    # Draw the computational graph and save it in the output directory.
+    chainerrl.misc.draw_computational_graph(
+        [model(np.zeros_like(obs_space.low, dtype=np.float32)[None])],
+        os.path.join(args.outdir, 'model'))
 
     if args.gpu >= 0:
         chainer.cuda.get_device(args.gpu).use()

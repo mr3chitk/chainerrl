@@ -18,6 +18,7 @@ from future import standard_library
 standard_library.install_aliases()
 
 import argparse
+import os
 import sys
 
 from chainer import optimizers
@@ -27,6 +28,7 @@ from gym import spaces
 import gym.wrappers
 import numpy as np
 
+import chainerrl
 from chainerrl.agents.dqn import DQN
 from chainerrl import experiments
 from chainerrl import explorers
@@ -125,6 +127,11 @@ def main():
         explorer = explorers.LinearDecayEpsilonGreedy(
             args.start_epsilon, args.end_epsilon, args.final_exploration_steps,
             action_space.sample)
+
+    # Draw the computational graph and save it in the output directory.
+    chainerrl.misc.draw_computational_graph(
+        [q_func(np.zeros_like(obs_space.low, dtype=np.float32)[None])],
+        os.path.join(args.outdir, 'model'))
 
     opt = optimizers.Adam()
     opt.setup(q_func)

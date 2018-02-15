@@ -7,6 +7,7 @@ from future import standard_library
 standard_library.install_aliases()
 
 import multiprocessing as mp
+import warnings
 
 import chainer
 import numpy as np
@@ -25,6 +26,7 @@ def ensure_initialized_update_rule(param):
 
         u.init_state(param)
 
+
 def set_shared_params(a, b):
     """Set shared params to a link.
 
@@ -39,6 +41,7 @@ def set_shared_params(a, b):
             param.data = np.frombuffer(
                 shared_param, dtype=param.data.dtype).reshape(param.data.shape)
 
+
 def make_params_not_shared(a):
     """Make a link's params not shared.
 
@@ -49,6 +52,7 @@ def make_params_not_shared(a):
     for param in a.params():
         param.data = param.data.copy()
 
+
 def assert_params_not_shared(a, b):
     assert isinstance(a, chainer.Link)
     assert isinstance(b, chainer.Link)
@@ -57,6 +61,7 @@ def assert_params_not_shared(a, b):
     for name, a_param in a_params.items():
         b_param = b_params[name]
         assert a_param.data.ctypes.data != b_param.data.ctypes.data
+
 
 def set_shared_states(a, b):
     assert isinstance(a, chainer.Optimizer)
@@ -70,6 +75,7 @@ def set_shared_states(a, b):
                 state_val,
                 dtype=s.dtype).reshape(s.shape)
 
+
 def extract_params_as_shared_arrays(link):
     assert isinstance(link, chainer.Link)
     shared_arrays = {}
@@ -77,10 +83,12 @@ def extract_params_as_shared_arrays(link):
         shared_arrays[param_name] = mp.RawArray('f', param.data.ravel())
     return shared_arrays
 
+
 def share_params_as_shared_arrays(link):
     shared_arrays = extract_params_as_shared_arrays(link)
     set_shared_params(link, shared_arrays)
     return shared_arrays
+
 
 def extract_states_as_shared_arrays(optimizer):
     assert isinstance(optimizer, chainer.Optimizer)
@@ -94,6 +102,7 @@ def extract_states_as_shared_arrays(optimizer):
             shared_arrays[param_name][
                 state_name] = mp.RawArray('f', state_val.ravel())
     return shared_arrays
+
 
 def share_states_as_shared_arrays(optimizer):
     shared_arrays = extract_states_as_shared_arrays(optimizer)
@@ -204,9 +213,18 @@ def run_async(n_process,
 
     for p in processes:
         p.start()
-    
-    for p in processes:
+
+    for process_idx, p in enumerate(processes):
         p.join()
+        if p.exitcode > 0:
+            warnings.warn(
+                "Process #{} (pid={}) exited with nonzero status {}".format(
+                    process_idx, p.pid, p.exitcode))
+        elif p.exitcode < 0:
+            warnings.warn(
+                "Process #{} (pid={}) was terminated by signal {}".format(
+                    process_idx, p.pid, -p.exitcode))
+
 
 def as_shared_objects(obj):
     if isinstance(obj, tuple):
@@ -223,7 +241,8 @@ def as_shared_objects(obj):
 
 def synchronize_to_shared_objects(obj, shared_memory):
     if isinstance(obj, tuple):
-        return tuple(synchronize_to_shared_objects(o, s) for o, s in zip(obj, shared_memory))
+        return tuple(synchronize_to_shared_objects(o, s)
+                     for o, s in zip(obj, shared_memory))
     elif isinstance(obj, chainer.Link):
         set_shared_params(obj, shared_memory)
         return obj

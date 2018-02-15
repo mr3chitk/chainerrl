@@ -399,10 +399,11 @@ class DQN(agent.AttributeSavingMixin, agent.Agent):
         else:
             model.to_cpu()
 
-    def act(self, state):
+    def act(self, obs):
         with chainer.using_config('train', False):
             with chainer.no_backprop_mode():
-                action_value = self.model(self.batch_states([state], self.xp, self.phi))
+                action_value = self.model(
+                    self.batch_states([obs], self.xp, self.phi))
                 q = float(action_value.max.data)
                 action = cuda.to_cpu(action_value.greedy_actions.data)[0]
 
@@ -413,15 +414,16 @@ class DQN(agent.AttributeSavingMixin, agent.Agent):
         self.logger.debug('t:%s q:%s action_value:%s', self.t, q, action_value)
         return action
 
-    def act_and_train(self, state, reward):
-        #start = time.time()
+    def act_and_train(self, obs, reward):
+
         with chainer.using_config('train', False):
             with chainer.no_backprop_mode():
-                action_value = self.model(self.batch_states([state], self.xp, self.phi))
+                action_value = self.model(
+                    self.batch_states([obs], self.xp, self.phi))
                 q = float(action_value.max.data)
-                greedy_action = cuda.to_cpu(action_value.greedy_actions.data)[0]
-        #print(time.time() - start)
-        
+                greedy_action = cuda.to_cpu(action_value.greedy_actions.data)[
+                    0]
+
         # Update stats
         self.average_q *= self.average_q_decay
         self.average_q += (1 - self.average_q_decay) * q
@@ -443,17 +445,17 @@ class DQN(agent.AttributeSavingMixin, agent.Agent):
                 state=self.last_state,
                 action=self.last_action,
                 reward=reward,
-                next_state=state,
+                next_state=obs,
                 next_action=action,
                 is_state_terminal=False)
 
-        self.last_state = state
+        self.last_state = obs
         self.last_action = action
 
         self.replay_updater.update_if_necessary(self.t)
 
         self.logger.debug('t:%s r:%s a:%s', self.t, reward, action)
-        
+
         return self.last_action
 
     def stop_episode_and_train(self, state, reward, done=False):
