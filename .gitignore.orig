@@ -1,0 +1,13 @@
+*.pyc
+.ipynb_checkpoints
+chainerrl.egg-info
+<<<<<<< HEAD
+build
+dist
+=======
+build/
+dist/
+.idea/
+results/
+examples/gym/results/
+>>>>>>> upstream/master

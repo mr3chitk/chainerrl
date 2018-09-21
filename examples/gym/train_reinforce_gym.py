@@ -13,13 +13,15 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 from __future__ import absolute_import
+from builtins import *  # NOQA
 from future import standard_library
-standard_library.install_aliases()
+standard_library.install_aliases()  # NOQA
 import argparse
 import os
 
 import chainer
 import gym
+gym.undo_logger_setup()  # NOQA
 import gym.wrappers
 import numpy as np
 
@@ -27,20 +29,63 @@ import chainerrl
 from chainerrl import experiments
 from chainerrl import misc
 
-def phi(obs):
-    return obs.astype(np.float32)
 
-def make_env(test, args):
+def main():
+    import logging
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--env', type=str, default='CartPole-v0')
+    parser.add_argument('--seed', type=int, default=0,
+                        help='Random seed [0, 2 ** 32)')
+    parser.add_argument('--gpu', type=int, default=0)
+    parser.add_argument('--outdir', type=str, default='results',
+                        help='Directory path to save output files.'
+                             ' If it does not exist, it will be created.')
+    parser.add_argument('--beta', type=float, default=1e-4)
+    parser.add_argument('--batchsize', type=int, default=10)
+    parser.add_argument('--steps', type=int, default=10 ** 5)
+    parser.add_argument('--eval-interval', type=int, default=10 ** 4)
+    parser.add_argument('--eval-n-runs', type=int, default=100)
+    parser.add_argument('--reward-scale-factor', type=float, default=1e-2)
+    parser.add_argument('--render', action='store_true', default=False)
+    parser.add_argument('--lr', type=float, default=1e-3)
+    parser.add_argument('--demo', action='store_true', default=False)
+    parser.add_argument('--load', type=str, default='')
+    parser.add_argument('--logger-level', type=int, default=logging.DEBUG)
+    parser.add_argument('--monitor', action='store_true')
+    args = parser.parse_args()
+
+    logging.basicConfig(level=args.logger_level)
+
+    # Set a random seed used in ChainerRL.
+    misc.set_random_seed(args.seed, gpus=(args.gpu,))
+
+    args.outdir = experiments.prepare_output_dir(args, args.outdir)
+
+    def make_env(test):
         env = gym.make(args.env)
+        # Use different random seeds for train and test envs
+        env_seed = 2 ** 32 - 1 - args.seed if test else args.seed
+        env.seed(env_seed)
+        # Cast observations to float32 because our model uses float32
+        env = chainerrl.wrappers.CastObservationToFloat32(env)
         if args.monitor:
             env = gym.wrappers.Monitor(env, args.outdir)
+        # Scale rewards observed by agents
         if not test:
-            misc.env_modifiers.make_reward_filtered(env, lambda x: x * args.reward_scale_factor)
+            misc.env_modifiers.make_reward_filtered(
+                env, lambda x: x * args.reward_scale_factor)
         if args.render and not test:
             misc.env_modifiers.make_rendered(env)
         return env
 
-def make_agent(obs_space, action_space, args):
+    train_env = make_env(test=False)
+    timestep_limit = train_env.spec.tags.get(
+        'wrapper_config.TimeLimit.max_episode_steps')
+    obs_space = train_env.observation_space
+    action_space = train_env.action_space
+
+    # Switch policy types accordingly to action space types
     if isinstance(action_space, gym.spaces.Box):
         model = chainerrl.policies.FCGaussianPolicyWithFixedCovariance(
             obs_space.low.size,
@@ -72,58 +117,17 @@ def make_agent(obs_space, action_space, args):
     opt.setup(model)
     opt.add_hook(chainer.optimizer.GradientClipping(1))
 
-    agent = chainerrl.agents.REINFORCE(model, opt, beta=args.beta, phi=phi, batchsize=args.batchsize)
+    agent = chainerrl.agents.REINFORCE(
+        model, opt, beta=args.beta, batchsize=args.batchsize)
     if args.load:
         agent.load(args.load)
-    return agent
 
-def main():
-    import logging
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--env', type=str, default='CartPole-v0')
-    parser.add_argument('--seed', type=int, default=None)
-    parser.add_argument('--gpu', type=int, default=0)
-    parser.add_argument('--outdir', type=str, default='results')
-    parser.add_argument('--beta', type=float, default=1e-4)
-    parser.add_argument('--batchsize', type=int, default=10)
-    parser.add_argument('--steps', type=int, default=10 ** 5)
-    parser.add_argument('--eval-interval', type=int, default=10 ** 4)
-    parser.add_argument('--eval-n-runs', type=int, default=100)
-    parser.add_argument('--reward-scale-factor', type=float, default=1e-2)
-    parser.add_argument('--render', action='store_true', default=False)
-    parser.add_argument('--lr', type=float, default=1e-3)
-    parser.add_argument('--demo', action='store_true', default=False)
-    parser.add_argument('--load', type=str, default='')
-    parser.add_argument('--logger-level', type=int, default=logging.INFO)
-    parser.add_argument('--monitor', action='store_true')
-    args = parser.parse_args()
-
-    #config logging
-    logger = logging.getLogger()
-    logger.setLevel(args.logger_level)
-    logger.handlers = []
-    handler = logging.StreamHandler()
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
-
-    if args.seed is not None:
-        misc.set_random_seed(args.seed)
-
-    args.outdir = experiments.prepare_output_dir(args, args.outdir)
-
-    train_env = make_env(test=False, args=args)
-    timestep_limit = train_env.spec.tags.get('wrapper_config.TimeLimit.max_episode_steps')
-    obs_space = train_env.observation_space
-    action_space = train_env.action_space
-
-    eval_env = make_env(test=True,args=args)
+    eval_env = make_env(test=True)
 
     if args.demo:
         eval_stats = experiments.eval_performance(
             env=eval_env,
-            agent=make_agent(obs_space, action_space, args),
+            agent=agent,
             n_runs=args.eval_n_runs,
             max_episode_len=timestep_limit)
         print('n_runs: {} mean: {} median: {} stdev {}'.format(
@@ -131,7 +135,7 @@ def main():
             eval_stats['stdev']))
     else:
         experiments.train_agent_with_evaluation(
-            agent=make_agent(obs_space, action_space, args),
+            agent=agent,
             env=train_env,
             eval_env=eval_env,
             outdir=args.outdir,
@@ -139,6 +143,7 @@ def main():
             eval_n_runs=args.eval_n_runs,
             eval_interval=args.eval_interval,
             max_episode_len=timestep_limit)
+
 
 if __name__ == '__main__':
     main()

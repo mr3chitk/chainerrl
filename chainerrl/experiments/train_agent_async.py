@@ -4,14 +4,14 @@ from __future__ import unicode_literals
 from __future__ import absolute_import
 from builtins import *  # NOQA
 from future import standard_library
-standard_library.install_aliases()
+standard_library.install_aliases()  # NOQA
 
 import logging
 import multiprocessing as mp
 import os
 
 from chainerrl.experiments.evaluator import AsyncEvaluator
-from chainerrl.misc import async
+from chainerrl.misc import async_
 from chainerrl.misc import random_seed
 from chainerrl import mplog
 
@@ -90,7 +90,7 @@ def train_loop(process_idx, env, agent, steps, outdir, counter,
                 if global_t > steps or training_done.value:
                     break
 
-    except KeyboardInterrupt:
+    except (Exception, KeyboardInterrupt):
         if process_idx == 0:
             # Save the current model before being killed
             dirname = os.path.join(outdir, '{}_except'.format(global_t))
@@ -112,13 +112,13 @@ def train_loop(process_idx, env, agent, steps, outdir, counter,
 
 
 def extract_shared_objects_from_agent(agent):
-    return dict((attr, async.as_shared_objects(getattr(agent, attr)))
+    return dict((attr, async_.as_shared_objects(getattr(agent, attr)))
                 for attr in agent.shared_attributes)
 
 
 def set_shared_objects(agent, shared_objects):
     for attr, shared in shared_objects.items():
-        new_value = async.synchronize_to_shared_objects(
+        new_value = async_.synchronize_to_shared_objects(
             getattr(agent, attr), shared)
         setattr(agent, attr, new_value)
 

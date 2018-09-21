@@ -3,7 +3,7 @@ from __future__ import unicode_literals
 from __future__ import division
 from __future__ import absolute_import
 from future import standard_library
-standard_library.install_aliases()
+standard_library.install_aliases()  # NOQA
 
 import logging
 import os
@@ -80,7 +80,7 @@ def train_agent(agent, env, steps, outdir, max_episode_len=None,
                 r = 0
                 done = False
 
-    except Exception:
+    except (Exception, KeyboardInterrupt):
         # Save the current model before being killed
         save_agent(agent, t, outdir, logger, suffix='_except')
         raise

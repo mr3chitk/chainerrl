@@ -2,13 +2,14 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 from __future__ import absolute_import
+from builtins import *  # NOQA
 from future import standard_library
-standard_library.install_aliases()
+standard_library.install_aliases()  # NOQA
 import argparse
 import os
 
 # This prevents numpy from using multiple threads
-os.environ['OMP_NUM_THREADS'] = '1'
+os.environ['OMP_NUM_THREADS'] = '1'  # NOQA
 
 import chainer
 from chainer import functions as F
@@ -17,6 +18,7 @@ import gym
 import gym.wrappers
 import numpy as np
 
+import chainerrl
 from chainerrl.action_value import DiscreteActionValue
 from chainerrl.agents import acer
 from chainerrl.distribution import SoftmaxDistribution
@@ -31,20 +33,81 @@ from chainerrl.replay_buffer import EpisodicReplayBuffer
 from chainerrl import spaces
 from chainerrl import v_functions
 
-def phi(obs):
-    return obs.astype(np.float32, copy=False)
 
-def make_env(process_idx, test, args):
-    env = gym.make(args.env)
-    if args.monitor and process_idx == 0:
-        env = gym.wrappers.Monitor(env, args.outdir)
-    if not test:
-        misc.env_modifiers.make_reward_filtered(env, lambda x: x * args.reward_scale_factor)
-    if args.render and process_idx == 0 and not test:
-        misc.env_modifiers.make_rendered(env)
-    return env
+def main():
+    import logging
 
-def make_agent(obs_space, action_space, args):
+    parser = argparse.ArgumentParser()
+    parser.add_argument('processes', type=int)
+    parser.add_argument('--env', type=str, default='CartPole-v0')
+    parser.add_argument('--seed', type=int, default=0,
+                        help='Random seed [0, 2 ** 32)')
+    parser.add_argument('--outdir', type=str, default='results',
+                        help='Directory path to save output files.'
+                             ' If it does not exist, it will be created.')
+    parser.add_argument('--t-max', type=int, default=50)
+    parser.add_argument('--n-times-replay', type=int, default=4)
+    parser.add_argument('--n-hidden-channels', type=int, default=100)
+    parser.add_argument('--n-hidden-layers', type=int, default=2)
+    parser.add_argument('--replay-capacity', type=int, default=5000)
+    parser.add_argument('--replay-start-size', type=int, default=10 ** 3)
+    parser.add_argument('--disable-online-update', action='store_true')
+    parser.add_argument('--beta', type=float, default=1e-2)
+    parser.add_argument('--profile', action='store_true')
+    parser.add_argument('--steps', type=int, default=8 * 10 ** 7)
+    parser.add_argument('--eval-interval', type=int, default=10 ** 5)
+    parser.add_argument('--eval-n-runs', type=int, default=10)
+    parser.add_argument('--reward-scale-factor', type=float, default=1e-2)
+    parser.add_argument('--rmsprop-epsilon', type=float, default=1e-2)
+    parser.add_argument('--render', action='store_true', default=False)
+    parser.add_argument('--lr', type=float, default=7e-4)
+    parser.add_argument('--demo', action='store_true', default=False)
+    parser.add_argument('--load', type=str, default='')
+    parser.add_argument('--logger-level', type=int, default=logging.DEBUG)
+    parser.add_argument('--monitor', action='store_true')
+    parser.add_argument('--truncation-threshold', type=float, default=5)
+    parser.add_argument('--trust-region-delta', type=float, default=0.1)
+    args = parser.parse_args()
+
+    logging.basicConfig(level=args.logger_level)
+
+    # Set a random seed used in ChainerRL.
+    # If you use more than one processes, the results will be no longer
+    # deterministic even with the same random seed.
+    misc.set_random_seed(args.seed)
+
+    # Set different random seeds for different subprocesses.
+    # If seed=0 and processes=4, subprocess seeds are [0, 1, 2, 3].
+    # If seed=1 and processes=4, subprocess seeds are [4, 5, 6, 7].
+    process_seeds = np.arange(args.processes) + args.seed * args.processes
+    assert process_seeds.max() < 2 ** 32
+
+    args.outdir = experiments.prepare_output_dir(args, args.outdir)
+
+    def make_env(process_idx, test):
+        env = gym.make(args.env)
+        # Use different random seeds for train and test envs
+        process_seed = int(process_seeds[process_idx])
+        env_seed = 2 ** 32 - 1 - process_seed if test else process_seed
+        env.seed(env_seed)
+        # Cast observations to float32 because our model uses float32
+        env = chainerrl.wrappers.CastObservationToFloat32(env)
+        if args.monitor and process_idx == 0:
+            env = gym.wrappers.Monitor(env, args.outdir)
+        # Scale rewards observed by agents
+        if not test:
+            misc.env_modifiers.make_reward_filtered(
+                env, lambda x: x * args.reward_scale_factor)
+        if args.render and process_idx == 0 and not test:
+            misc.env_modifiers.make_rendered(env)
+        return env
+
+    sample_env = gym.make(args.env)
+    timestep_limit = sample_env.spec.tags.get(
+        'wrapper_config.TimeLimit.max_episode_steps')
+    obs_space = sample_env.observation_space
+    action_space = sample_env.action_space
+
     if isinstance(action_space, spaces.Box):
         model = acer.ACERSDNSeparateModel(
             pi=policies.FCGaussianPolicy(
@@ -68,16 +131,19 @@ def make_agent(obs_space, action_space, args):
             pi=links.Sequence(
                 L.Linear(obs_space.low.size, args.n_hidden_channels),
                 F.relu,
-                L.Linear(args.n_hidden_channels, action_space.n, initialW=LeCunNormal(1e-3)),
+                L.Linear(args.n_hidden_channels, action_space.n,
+                         initialW=LeCunNormal(1e-3)),
                 SoftmaxDistribution),
             q=links.Sequence(
                 L.Linear(obs_space.low.size, args.n_hidden_channels),
                 F.relu,
-                L.Linear(args.n_hidden_channels, action_space.n, initialW=LeCunNormal(1e-3)),
+                L.Linear(args.n_hidden_channels, action_space.n,
+                         initialW=LeCunNormal(1e-3)),
                 DiscreteActionValue),
         )
 
-    opt = rmsprop_async.RMSpropAsync(lr=args.lr, eps=args.rmsprop_epsilon, alpha=0.99)
+    opt = rmsprop_async.RMSpropAsync(
+        lr=args.lr, eps=args.rmsprop_epsilon, alpha=0.99)
     opt.setup(model)
     opt.add_hook(chainer.optimizer.GradientClipping(40))
 
@@ -90,67 +156,15 @@ def make_agent(obs_space, action_space, args):
                       use_trust_region=True,
                       trust_region_delta=args.trust_region_delta,
                       truncation_threshold=args.truncation_threshold,
-                      beta=args.beta, phi=phi)
+                      beta=args.beta)
     if args.load:
         agent.load(args.load)
-    return agent
-
-def main():
-    import logging
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument('processes', type=int)
-    parser.add_argument('--env', type=str, default='CartPole-v0')
-    parser.add_argument('--seed', type=int, default=None)
-    parser.add_argument('--outdir', type=str, default=None)
-    parser.add_argument('--t-max', type=int, default=50)
-    parser.add_argument('--n-times-replay', type=int, default=4)
-    parser.add_argument('--n-hidden-channels', type=int, default=100)
-    parser.add_argument('--n-hidden-layers', type=int, default=2)
-    parser.add_argument('--replay-capacity', type=int, default=5000)
-    parser.add_argument('--replay-start-size', type=int, default=10 ** 3)
-    parser.add_argument('--disable-online-update', action='store_true')
-    parser.add_argument('--beta', type=float, default=1e-2)
-    parser.add_argument('--profile', action='store_true')
-    parser.add_argument('--steps', type=int, default=8 * 10 ** 7)
-    parser.add_argument('--eval-interval', type=int, default=10 ** 5)
-    parser.add_argument('--eval-n-runs', type=int, default=10)
-    parser.add_argument('--reward-scale-factor', type=float, default=1e-2)
-    parser.add_argument('--rmsprop-epsilon', type=float, default=1e-2)
-    parser.add_argument('--render', action='store_true', default=False)
-    parser.add_argument('--lr', type=float, default=7e-4)
-    parser.add_argument('--demo', action='store_true', default=False)
-    parser.add_argument('--load', type=str, default='')
-    parser.add_argument('--logger-level', type=int, default=logging.INFO)
-    parser.add_argument('--monitor', action='store_true')
-    parser.add_argument('--truncation-threshold', type=float, default=5)
-    parser.add_argument('--trust-region-delta', type=float, default=0.1)
-    args = parser.parse_args()
-
-    #config logging
-    logger = logging.getLogger()
-    logger.setLevel(args.logger_level)
-    logger.handlers = []
-    handler = logging.StreamHandler()
-    formatter = logging.Formatter('%(asctime)s - %(processName)s - %(levelname)s - %(message)s')
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
-
-    if args.seed is not None:
-        misc.set_random_seed(args.seed)
-
-    args.outdir = experiments.prepare_output_dir(args, args.outdir)
-
-    sample_env = gym.make(args.env)
-    timestep_limit = sample_env.spec.tags.get('wrapper_config.TimeLimit.max_episode_steps')
-    obs_space = sample_env.observation_space
-    action_space = sample_env.action_space
 
     if args.demo:
-        env = make_env(0, True, args)
+        env = make_env(0, True)
         eval_stats = experiments.eval_performance(
             env=env,
-            agent=make_agent(obs_space, action_space, args),
+            agent=agent,
             n_runs=args.eval_n_runs,
             max_episode_len=timestep_limit)
         print('n_runs: {} mean: {} median: {} stdev {}'.format(
@@ -158,7 +172,7 @@ def main():
             eval_stats['stdev']))
     else:
         experiments.train_agent_async(
-            make_agent=make_agent,
+            agent=agent,
             outdir=args.outdir,
             processes=args.processes,
             make_env=make_env,
@@ -166,11 +180,8 @@ def main():
             steps=args.steps,
             eval_n_runs=args.eval_n_runs,
             eval_interval=args.eval_interval,
-            max_episode_len=timestep_limit,
-            full_args=args,
-            obs_space=obs_space, 
-            action_space=action_space
-            )
+            max_episode_len=timestep_limit)
+
 
 if __name__ == '__main__':
     main()
