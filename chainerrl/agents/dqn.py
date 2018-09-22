@@ -309,18 +309,12 @@ class DQN(agent.AttributeSavingMixin, agent.Agent):
         batch_next_state = exp_batch['next_state']
 
         target_next_qout = self.target_model(batch_next_state)
-        
-        '''old q function with accumulated best result'''
-        #next_q_max = target_next_qout.max
-        
-        '''new q function with accumulated result based on action (action specified), more future prediction power than old q'''
-        actions = exp_batch['action']
-        next_q_same_act = target_next_qout.evaluate_actions(actions)
 
+        next_q_max = target_next_qout.max
         batch_rewards = exp_batch['reward']
         batch_terminal = exp_batch['is_state_terminal']
 
-        return batch_rewards + self.gamma * (1.0 - batch_terminal) * next_q_same_act #next_q_same_act #next_q_max
+        return batch_rewards + self.gamma * (1.0 - batch_terminal) * next_q_max
 
     def _compute_y_and_t(self, exp_batch, gamma):
         batch_size = exp_batch['reward'].shape[0]
